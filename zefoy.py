@@ -12,6 +12,7 @@ class Zefoy:
         self.proxy = proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}"
         if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
         else: self.client = httpx.AsyncClient(timeout=120)
+        self.aclient = httpx.AsyncClient(timeout=120)
         self.captcha = {}
         self.captcha_token = None
         self.video_key = None
@@ -40,7 +41,7 @@ class Zefoy:
 
     async def solve_captcha(self, image_obj: BytesIO, delete_tag: list = ['\n','\r']):
         # print('[+] Solving captcha...')
-        req = (await self.client.post("https://plowsidecaptcha.pythonanywhere.com/captcha", files={"file": ("captcha.png", image_obj, "image/png")})).json()
+        req = (await self.aclient.post("https://plowsidecaptcha.pythonanywhere.com/captcha", files={"file": ("captcha.png", image_obj, "image/png")})).json()
         solved_text = req['captcha_text']
         for x in delete_tag: solved_text = solved_text.replace(x,'')
         return solved_text

@@ -117,6 +117,10 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
                         return await db.update_task(task_id, status='error')
                     continue
                 break
+        # except httpx.RemoteProtocolError:
+        #     ...
+        # except httpx.TimeoutException:
+        #     ...
         except Exception as e:
             logging.error(f"Ошибка в run_zefoy_comments({type(e)}): {e}")
         await asyncio.sleep(10)
