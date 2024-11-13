@@ -1,0 +1,4 @@
+httpx
+pillow
+aiosqlite
+aiogram==2.25.1
