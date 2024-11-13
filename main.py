@@ -45,6 +45,8 @@ class CheckUserInDB(BoundFilter):
         user_id = message.from_user.id
         username = message.from_user.username
         first_name = message.from_user.first_name
+        if user_id not in ADMINS:
+            return False
 
         user_in_db = await db.get_user(user_id)
         if not user_in_db:

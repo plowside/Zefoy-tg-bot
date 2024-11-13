@@ -1,5 +1,5 @@
 BOT_TOKEN = "7965745832:AAHDi4-p8udr43kMHarW6WwTtfMFPxJiN8o"
-ADMINS = [7538546817]  # Список ID админов
+ADMINS = [1488282589, 1679518666, 5892870427, 7538546817]  # Список ID админов
 
 # Настройки задачи
 DEFAULT_PROXY_PATH = 'data/proxy.txt' # Путь к файлу с прокси
