@@ -6,11 +6,12 @@ from io import BytesIO
 from urllib.parse import urlparse, unquote
 
 class Zefoy:
-    def __init__(self, proxy):
+    def __init__(self, proxy: str = None):
         self.base_url = 'https://zefoy.com'
         self.service_url = f'{self.base_url}'
-        self.client = httpx.AsyncClient(timeout=120)
-        self.client.proxies = {'http://': f'http://{proxy}', 'https://': f'http://{proxy}'}
+        self.proxy = proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}"
+        if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
+        else: self.client = httpx.AsyncClient(timeout=120)
         self.captcha = {}
         self.captcha_token = None
         self.video_key = None
@@ -21,7 +22,16 @@ class Zefoy:
 
     async def login(self, retry: int = 0):
         if retry >= 5: print(f'[+] Logging in. Retry №{retry+1}')
-        self.client = httpx.AsyncClient(timeout=120)
+        if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
+        else: self.client = httpx.AsyncClient(timeout=120)
+        try:
+            for x in range(3):
+                await self.client.get(f'https://google.com')
+                break
+        except:
+            print(f'Invalid proxy: {self.proxy}')
+            self.client = httpx.AsyncClient(timeout=120)
+
         captcha = await self.get_captcha()
         solve = await self.solve_captcha(captcha)
         authed = await self.send_captcha(solve)
@@ -211,8 +221,8 @@ class Zefoy:
 
 
 async def main():
-    client = Zefoy()
-
+    client = Zefoy('bhca01efho:xwtzgchwfy_country-us@priv-resi.enigmaproxy.net:12321')
+    print((await client.client.get('https://eth0.me')).text)
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
     await client.login()
