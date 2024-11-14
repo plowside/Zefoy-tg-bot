@@ -34,6 +34,7 @@ class Zefoy:
             self.client = httpx.AsyncClient(timeout=120)
 
         captcha = await self.get_captcha()
+        if not captcha: return
         solve = await self.solve_captcha(captcha)
         authed = await self.send_captcha(solve)
         if not authed:
@@ -103,6 +104,8 @@ class Zefoy:
         :param ttl: Время накрутки в секундах
         :return: Bool - успешна завершена накрутка
         """
+        if service not in self.services_ids:
+            return False
         self.service_url = f'{self.base_url}/{self.services_ids[service]}'
 
         current_ttl = 0
