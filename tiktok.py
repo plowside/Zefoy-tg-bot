@@ -20,7 +20,7 @@ class TikTok:
         return match.group(2) if match else None
 
     @classmethod
-    async def get_video_comments(cls, aweme_id: int, author_username: str = None, search_text: str = None) -> list:
+    async def get_video_comments(cls, aweme_id: int, author_username: str = None, search_text: str = None, search_comment_id: int = None) -> list:
         """
         :param aweme_id: ID видео в тиктоке
         :param search_text: Текст для поиска в комментарии
@@ -70,15 +70,20 @@ class TikTok:
                         print('finish')
                         break
                     for x in comments:
+
                         found_cid.append(x['id'])
                     cursor += len(comments)
                     result_comments.extend(comments)
+                    if search_comment_id is not None and str(search_comment_id) in found_cid:
+                        return [x for x in result_comments if str(x['id']) == str(search_comment_id)]
                     print(f"Parsed comments: {len(result_comments)} | Comments count: {len(comments)} | First-Last comment cid: {comments[0]['id']}-{comments[-1]['id']}")
                     retry = 0
                 except Exception as e:
                     print(req, e)
                     print(req.text)
 
+            if search_comment_id is not None:
+                return [x for x in result_comments if str(x['id']) == str(search_comment_id)]
             searched_comments = cls.search_comments(result_comments, author_username if author_username is not None else search_text, search_by_text=search_text is not None, search_by_username=author_username is not None)
             return searched_comments
 
@@ -106,10 +111,10 @@ class TikTok:
 
 
 async def main():
-    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@kizarujefe/video/7435054952994573600/')
+    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@koteik.a/video/7436709912949968183')
     video_id = TikTok.extract_video_id(full_url)
     print(video_id, full_url)
-    comments = await TikTok.get_video_comments(video_id, author_username='Olegharlamov')
+    comments = await TikTok.get_video_comments(video_id, search_comment_id=7437069448312079112)
     print(len(comments), comments)
 
 if __name__ == '__main__':
