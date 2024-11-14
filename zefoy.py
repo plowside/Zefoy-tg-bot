@@ -9,7 +9,7 @@ class Zefoy:
     def __init__(self, proxy: str = None):
         self.base_url = 'https://zefoy.com'
         self.service_url = f'{self.base_url}'
-        self.proxy = proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}"
+        self.proxy = proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}" if proxy else None
         if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
         else: self.client = httpx.AsyncClient(timeout=120)
         self.aclient = httpx.AsyncClient(timeout=120)
