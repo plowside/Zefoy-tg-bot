@@ -334,7 +334,7 @@ async def state_create_task_input_task_proxy_callback(call: types.CallbackQuery,
 async def on_startup(dp: Dispatcher):
     """Инициализация базы данных при запуске."""
     await init_db()
-    await run_tasks()
+    asyncio.get_event_loop().create_task(run_tasks())
 
     await bot.set_my_commands([
         BotCommand(command="start", description="Начало работы"),

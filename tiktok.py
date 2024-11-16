@@ -5,11 +5,14 @@ class TikTok:
     async def get_full_tiktok_url(short_url: str) -> str:
         """Получает полную ссылку из короткой ссылки TikTok."""
         async with httpx.AsyncClient() as client:
+            response = None
             for x in range(3):
                 try:
                     response = await client.get(short_url, follow_redirects=True)
                     break
                 except: continue
+            if not response:
+                return short_url
             url = str(response.url).split('?')[0]
             return url if 'https://' in url else str(response.url)
 
@@ -62,6 +65,8 @@ class TikTok:
                     if retry >= 2:
                         print(f'Retry: {retry}')
                     # print('Antifrod')
+                    if retry > 50:
+                        return []
                     retry += 1
                     continue
                 try:
@@ -70,7 +75,6 @@ class TikTok:
                         print('finish')
                         break
                     for x in comments:
-
                         found_cid.append(x['id'])
                     cursor += len(comments)
                     result_comments.extend(comments)

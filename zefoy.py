@@ -9,7 +9,7 @@ class Zefoy:
     def __init__(self, proxy: str = None):
         self.base_url = 'https://zefoy.com'
         self.service_url = f'{self.base_url}'
-        self.proxy = proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}" if proxy else None
+        self.proxy = (proxy if len(proxy.split(':')) == 2 or '@' in proxy else f"{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}") if proxy else None
         if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
         else: self.client = httpx.AsyncClient(timeout=120)
         self.aclient = httpx.AsyncClient(timeout=120)
@@ -57,6 +57,10 @@ class Zefoy:
             return False
 
         try:
+            if 'Too many requests. Please slow down.</h1' in resp.text:
+                print('[-] Slow down')
+                await asyncio.sleep(120)
+                return await self.get_captcha()
             for x in re.findall(r'<input type="hidden" name="(.*)" value="(.*)">', resp.text): self.captcha[x[0]] = x[1]
             self.captcha_token = resp.text.split('type="text" name="')[1].split('" oninput="this.value=this.value.toLowerCase()"')[0]
             captcha_url = resp.text.split('<img src="')[1].split('" onerror')[0].replace('amp;', '')
@@ -113,11 +117,9 @@ class Zefoy:
             start = time.time()
             resp = await self.get_video(url)
             if resp in ['No an comment found']:
-
                 print('ret', 1, 'return resp')
                 return resp
-            if self.video_info is None:
-
+            elif self.video_info is None:
                 print('ret', 2, 'return False')
                 return False
             await self.send_service(service, comment_id)
@@ -127,7 +129,6 @@ class Zefoy:
             if ttl is not None and ttl >= 0:
                 current_ttl += time.time() - start
                 if current_ttl >= ttl:
-
                     print('ret', 4, 'return True')
                     return True
 
@@ -165,6 +166,9 @@ class Zefoy:
             return await self.get_video(url)
         elif 'No an comment found' in resp:
             return 'No an comment found'
+        elif 'An error occurred. Please try again' in resp:
+            await self.login()
+            return await self.get_video(url)
         else:
             print('[+] Video_resp', resp)
         return resp
@@ -240,7 +244,7 @@ class Zefoy:
 
 
 async def main():
-    client = Zefoy('77.232.134.40:5959:bhca01efho:xwtzgchwfy_country-ca')
+    client = Zefoy()
     print((await client.client.get('https://eth0.me')).text)
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}

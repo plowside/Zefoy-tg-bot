@@ -65,6 +65,7 @@ async def notify(user_id: int, text: str):
 async def run_tasks():
     for task in await db.get_task(for_start=True):
         asyncio.get_event_loop().create_task(run_task(task['id']))
+        await asyncio.sleep(10)
 
 async def run_task(task_id: int):
     task = await db.get_task(task_id)
@@ -89,6 +90,7 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
         ttl = task['task_ttl'] - task['already_completed_minutes']
         print('zzz', task['task_ttl'], task['already_completed_minutes'], ttl)
         if ttl <= 0:
+            logging.info(f'Task {task_id} finished success')
             await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача успешно завершена</i>')
             return await db.update_task(task_id, status='error')
         try:
@@ -100,6 +102,7 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
                     task = await db.update_task(task_id, already_completed_minutes=1)
                     print('VVV', task['task_ttl'], task['already_completed_minutes'], task['task_ttl'] - task['already_completed_minutes'])
                     if task['already_completed_minutes'] >= task['task_ttl']:
+                        logging.info(f'Task {task_id} finished success')
                         future.cancel()
                         await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача успешно завершена</i>')
                         return await db.update_task(task_id, status='error')
@@ -108,11 +111,13 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
                 if future.done():
                     result = future.result()
                     if result == False:
-                        if retry >= 3:
+                        if retry > 5:
+                            logging.info(f'Task {task_id} finished with error')
                             await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача завершена с ошибкой</i>')
                             return await db.update_task(task_id, status='error')
                         retry += 1
                     elif result == 'No an comment found':
+                        logging.info(f'Task {task_id} finished with error (No comment found)')
                         await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача завершена с ошибкой, ошибка: Комментарий не найден</i>')
                         return await db.update_task(task_id, status='error')
                     continue
