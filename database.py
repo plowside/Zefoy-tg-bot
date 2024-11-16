@@ -110,7 +110,7 @@ class Database:
 			if already_completed_minutes is not None:
 				await db.execute('UPDATE tasks SET already_completed_minutes = already_completed_minutes + ? WHERE id = ?', (already_completed_minutes, task_id))
 			if likes_count is not None:
-				await db.execute('UPDATE tasks SET likes_count = likes_count WHERE id = ?', (likes_count, task_id))
+				await db.execute('UPDATE tasks SET likes_count = ? WHERE id = ?', (likes_count, task_id))
 			await db.commit()
 
 		return await cls.get_task(task_id)
