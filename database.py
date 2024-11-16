@@ -26,6 +26,7 @@ class Database:
 									user_id INTEGER,
 									video_url TEXT,
 									comment_id TEXT,
+									likes_count INTEGER DEFAULT 0,
 									proxy TEXT,
 									task_ttl INTEGER,
 									already_completed_minutes INTEGER,
@@ -78,7 +79,7 @@ class Database:
 					cur.row_factory = dict_factory
 					tasks = await cur.fetchall()
 					return tasks
-			elif for_start == True:
+			elif for_start:
 				async with db.execute(f'SELECT * FROM tasks WHERE status = ? OR status = ? ORDER BY id DESC', ('in_progress', 'created')) as cur:
 					cur.row_factory = dict_factory
 					tasks = await cur.fetchall()
@@ -102,12 +103,14 @@ class Database:
 		return await cls.get_task(task_id)
 
 	@classmethod
-	async def update_task(cls, task_id: int, already_completed_minutes: int = None, status: str = None) -> dict:
+	async def update_task(cls, task_id: int, already_completed_minutes: int = None, status: str = None, likes_count: int = None) -> dict:
 		async with aiosqlite.connect(cls.DB_PATH) as db:
 			if status is not None:
 				await db.execute('UPDATE tasks SET status = ? WHERE id = ?', (status, task_id))
 			if already_completed_minutes is not None:
 				await db.execute('UPDATE tasks SET already_completed_minutes = already_completed_minutes + ? WHERE id = ?', (already_completed_minutes, task_id))
+			if likes_count is not None:
+				await db.execute('UPDATE tasks SET likes_count = likes_count WHERE id = ?', (likes_count, task_id))
 			await db.commit()
 
 		return await cls.get_task(task_id)

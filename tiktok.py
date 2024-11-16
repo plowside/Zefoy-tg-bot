@@ -70,7 +70,7 @@ class TikTok:
                     retry += 1
                     continue
                 try:
-                    comments = [{'id': x.get('cid', None), 'text': x.get('text', None), 'author': x.get('user', {}).get('unique_id', 'None'), 'nickname': x.get('user', {}).get('nickname', 'None'), 'video_id': aweme_id} for x in req.json()['comments'] if x.get('cid') not in found_cid]
+                    comments = [{'id': x.get('cid', None), 'text': x.get('text', None), 'likes_count': x.get('digg_count', 0), 'author': x.get('user', {}).get('unique_id', 'None'), 'nickname': x.get('user', {}).get('nickname', 'None'), 'video_id': aweme_id} for x in req.json()['comments'] if x.get('cid') not in found_cid]
                     if len(comments) == 0:
                         print('finish')
                         break
@@ -115,10 +115,10 @@ class TikTok:
 
 
 async def main():
-    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@koteik.a/video/7436709912949968183')
+    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@flowsideee/video/7376686071742074129')
     video_id = TikTok.extract_video_id(full_url)
     print(video_id, full_url)
-    comments = await TikTok.get_video_comments(video_id, search_comment_id=7437069448312079112)
+    comments = await TikTok.get_video_comments(video_id, search_comment_id=7376686389230699265)
     print(len(comments), comments)
 
 if __name__ == '__main__':

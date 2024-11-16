@@ -8,6 +8,7 @@ import httpx
 
 from config import BOT_TOKEN
 from database import Database as db
+from tiktok import TikTok
 from zefoy import Zefoy
 
 
@@ -61,6 +62,25 @@ async def notify(user_id: int, text: str):
         response = await client.get(f'https://api.telegram.org/bot{BOT_TOKEN}/sendMessage', params={"chat_id": user_id, "text": text, "parse_mode": "HTML"})
         if response.status_code != 200:
             logging.warning(f'Ошибка при уведомлении пользователя ({response.status_code}): {response.json()}')
+
+async def live_likes_count():
+    while True:
+        try:
+            tasks = await db.get_task(for_start=True)
+            futures = [update_comment_likes(task['id'], task['video_url'], task['comment_id']) for task in tasks]
+            if len(futures) > 0: await asyncio.gather(*futures)
+        except Exception as e:
+            print('live_likes_count', type(e), e)
+        await asyncio.sleep(120)
+
+async def update_comment_likes(task_id: int, video_url: str, comment_id: int):
+    video_id = TikTok.extract_video_id(video_url)
+    comments = await TikTok.get_video_comments(video_id, search_comment_id=comment_id)
+    if len(comments) == 0:
+        return False
+    await db.update_task(task_id, likes_count=comments[0]['likes_count'])
+    return True
+
 
 async def run_tasks():
     for task in await db.get_task(for_start=True):

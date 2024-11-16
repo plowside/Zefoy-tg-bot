@@ -245,12 +245,11 @@ class Zefoy:
 
 async def main():
     client = Zefoy()
-    print((await client.client.get('https://eth0.me')).text)
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
     # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
     await client.login()
     # await client.use_service('Views', 'https://vt.tiktok.com/ZSjB6EknW')
-    try: await client.use_service('Comments Hearts', 'https://vt.tiktok.com/ZSjB6EknW', '7376686389230699265')
+    try: await client.use_service('Comments Hearts', 'https://www.tiktok.com/@flowsideee/video/7376686071742074129', '7383771955814417158')
     except Exception as e: print('await client.use_service', e)
     await client.client.aclose()
 

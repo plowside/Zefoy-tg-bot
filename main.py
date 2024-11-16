@@ -104,8 +104,7 @@ async def handle_user(call: types.CallbackQuery, state: FSMContext):
             page = int(cd[3])
             task_id = int(cd[4])
             task = await db.get_task(task_id=task_id)
-            # print('show_task', task)
-            await call.message.edit_text(f"<b>ℹ️ Информация о задаче</b>\n\n{STATUS_EMOJI_TRANSLATIONS[task['status']]} ID Задачи: <code>{task['id']}</code>\n├ Ссылка на видео:  <code>{task['video_url']}</code>\n├ ID комментария:  <code>{task['comment_id']}</code>\n├ Время работы:  <code>{task['task_ttl']} минут</code>\n├ Уже выполнено:  <code>{task['already_completed_minutes']} минут</code>\n├ Дата создания:  <code>{datetime.fromtimestamp(task['create_ts']).strftime('%d.%m.%Y %H:%M')}</code>\n└ Статус:  <code>{STATUS_TRANSLATIONS[task['status']]}</code>", reply_markup=await kb_back(f'user:task:my_tasks:{page}'))
+            await call.message.edit_text(f"<b>ℹ️ Информация о задаче</b>\n\n{STATUS_EMOJI_TRANSLATIONS[task['status']]} ID Задачи: <code>{task['id']}</code>\n├ Ссылка на видео:  <code>{task['video_url']}</code>\n├ ID комментария:  <code>{task['comment_id']}</code>\n├ Время работы:  <code>{task['task_ttl']} минут</code>\n├ Уже выполнено:  <code>{task['already_completed_minutes']} минут</code>\n├ Дата создания:  <code>{datetime.fromtimestamp(task['create_ts']).strftime('%d.%m.%Y %H:%M')}</code>\n├ Лайков:  <code>{task['likes_count']}</code>\n└ Статус:  <code>{STATUS_TRANSLATIONS[task['status']]}</code>", reply_markup=await kb_back(f'user:task:my_tasks:{page}'))
 
 
 @dp.message_handler(state=CreateTask.InputVideoUrl)
@@ -176,7 +175,7 @@ async def state_create_task_input_search_text(message: types.Message, state: FSM
         await message.answer('<b>❌ Вы не выбрали тип поиска комментария</b>', reply_markup=await kb_back('back'))
         return
 
-    comment = {'id': None, 'text': 'None', 'author': None, 'nickname': None, 'video_id': None}
+    comment = {'id': None, 'text': 'None', 'likes_count': 0, 'author': None, 'nickname': None, 'video_id': None}
     video_url = state_data['video_url']
     video_comments = state_data['video_comments']
     search_type = state_data['search_type']
@@ -335,6 +334,7 @@ async def on_startup(dp: Dispatcher):
     """Инициализация базы данных при запуске."""
     await init_db()
     asyncio.get_event_loop().create_task(run_tasks())
+    asyncio.get_event_loop().create_task(live_likes_count())
 
     await bot.set_my_commands([
         BotCommand(command="start", description="Начало работы"),
