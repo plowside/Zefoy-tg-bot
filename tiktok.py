@@ -6,11 +6,13 @@ class TikTok:
         """Получает полную ссылку из короткой ссылки TikTok."""
         async with httpx.AsyncClient() as client:
             response = None
-            for x in range(3):
+            for x in range(5):
                 try:
                     response = await client.get(short_url, headers={'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'accept-language': 'ru,en-US;q=0.9,en;q=0.8,ru-RU;q=0.7', 'priority': 'u=0, i', 'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"Windows"', 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'none', 'sec-fetch-user': '?1', 'upgrade-insecure-requests': '1', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}, follow_redirects=True)
                     break
-                except: continue
+                except Exception as e:
+                    print('get_full_tiktok_url', type(e), e)
+                    continue
             if not response:
                 return short_url
             url = str(response.url).split('?')[0]
