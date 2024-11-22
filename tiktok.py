@@ -4,7 +4,7 @@ class TikTok:
     @staticmethod
     async def get_full_tiktok_url(short_url: str) -> str:
         """Получает полную ссылку из короткой ссылки TikTok."""
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             response = None
             for x in range(5):
                 try:
@@ -32,7 +32,7 @@ class TikTok:
         :param author_username: Юзернейм автора для поиска
         :return: Список с комментариями
         """
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=120) as client:
             data = str(aweme_id)
             encoded_data = base64.b64encode(hashlib.sha256(data.encode()).digest()).decode('utf-8')
             count = 50
@@ -117,7 +117,7 @@ class TikTok:
 
 
 async def main():
-    full_url = await TikTok.get_full_tiktok_url('https://vm.tiktok.com/ZMhneJg7k/')
+    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@kanta_kein/video/7438936734668262698/')
     video_id = TikTok.extract_video_id(full_url)
     print(video_id, full_url)
     comments = await TikTok.get_video_comments(video_id, search_comment_id=7376686389230699265)
