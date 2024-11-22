@@ -117,10 +117,10 @@ class TikTok:
 
 
 async def main():
-    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@kanta_kein/video/7438936734668262698/')
+    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@flowsideee/video/7376686071742074129/')
     video_id = TikTok.extract_video_id(full_url)
     print(video_id, full_url)
-    comments = await TikTok.get_video_comments(video_id, search_comment_id=7376686389230699265)
+    comments = await TikTok.get_video_comments(video_id, search_comment_id=7383771955814417158)
     print(len(comments), comments)
 
 if __name__ == '__main__':
