@@ -13,7 +13,6 @@ class Zefoy:
         if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
         else: self.client = httpx.AsyncClient(timeout=120)
         self.aclient = httpx.AsyncClient(timeout=120)
-        self.captcha = {}
         self.captcha_token = None
         self.video_key = None
         self.services = {}
@@ -63,9 +62,8 @@ class Zefoy:
                 print('[-] Slow down')
                 await asyncio.sleep(120)
                 return await self.get_captcha()
-            for x in re.findall(r'<input type="hidden" name="(.*)" value="(.*)">', resp.text): self.captcha[x[0]] = x[1]
-            self.captcha_token = resp.text.split('type="text" name="')[1].split('" oninput="this.value=this.value.toLowerCase()"')[0]
-            captcha_url = resp.text.split('<img src="')[1].split('" onerror')[0].replace('amp;', '')
+            self.captcha_token = resp.text.split('type="text" name="')[1].split('"')[0]
+            captcha_url = resp.text.split('<img src="')[1].split('"')[0].replace('amp;', '')
             req = await self.client.get(f"{self.base_url}/{captcha_url}", headers = {'Host': 'zefoy.com', 'Cache-Control': 'max-age=0', 'Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"', 'Sec-Ch-Ua-Mobile': '?0', 'Sec-Ch-Ua-Platform': '"Windows"', 'Accept-Language': 'ru-RU,ru;q=0.9', 'Origin': 'null', 'Content-Type': 'application/x-www-form-urlencoded', 'Upgrade-Insecure-Requests': '1', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-User': '?1', 'Sec-Fetch-Dest': 'document', 'Priority': 'u=0, i'})
             image = Image.open(BytesIO(req.content))
             image_obj = BytesIO()
@@ -79,7 +77,8 @@ class Zefoy:
 
     async def send_captcha(self, solve: str):
         resp = await self.client.post(self.base_url, data={self.captcha_token: solve}, headers={'Host': 'zefoy.com','Cache-Control': 'max-age=0','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Origin': 'null','Content-Type': 'application/x-www-form-urlencoded','Upgrade-Insecure-Requests': '1','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'navigate','Sec-Fetch-User': '?1','Sec-Fetch-Dest': 'document','Priority': 'u=0, i'})
-        if 'Enter Video URL' in resp.text:
+        # print(resp.text)
+        if 'Join our' in resp.text:
             self.video_key = resp.text.split('" placeholder="Enter Video URL"')[0].split('name="')[-1]
             await self.get_services(resp.text)
             self.client.cookies.set("user_agent", "Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F130.0.6723.70%20Safari%2F537.36", 'zefoy.com')
@@ -187,6 +186,11 @@ class Zefoy:
                     if 'Checking Timer' in resp:
                         if 'The server is too busy. Please try again in' in resp:
                             time_to_sleep = int(re.findall(r'Please try again in (\d*)', resp)[0])
+                        elif 'next time in' in resp:
+                            time_to_sleep = int(re.findall(r'next time in (\d*);', resp)[0])
+                        elif 'service is currently not working' in resp:
+                            time_to_sleep = 0
+                            print('[-] Service is currently not working (Next time in)')
                         else:
                             time_to_sleep = int(re.findall(r'ltm=(\d*);', resp)[0])
                         if time_to_sleep >= 0 and time_to_sleep <= 1000:
