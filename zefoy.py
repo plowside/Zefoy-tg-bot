@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os.path
+import random
 
 import aiofiles.os
 import aiohttp
@@ -39,7 +40,7 @@ class Zefoy:
             self.proxy = None
             self.client = httpx.AsyncClient(timeout=120)
         self.client.cookies.set("user_agent", "Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36", 'zefoy.com')
-        self.client.cookies.set("window_size", "1920x911", 'zefoy.com')
+        self.client.cookies.set("window_size", f"{random.randint(1600, 1920)}x{random.randint(600, 900)}", 'zefoy.com')
         self.client.cookies.set("language", "ru", 'zefoy.com')
         self.client.cookies.set("languages", "ru,en-US,ru-RU,en", 'zefoy.com')
         self.client.cookies.set("time_zone", "Asia/Novosibirsk", 'zefoy.com')
@@ -98,11 +99,14 @@ class Zefoy:
             cf_clearance = await asyncio.get_event_loop().run_in_executor(None, self.get_cf_clearance)
             if cf_clearance:
                 this_ip = await self.get_ip()
-                try:
-                    async with aiofiles.open('.sessions', 'r', encoding='utf-8') as f:
-                        file_content = json.loads(await f.read())
-                except Exception as e:
-                    print(type(e), e)
+                if os.path.exists('.sessions'):
+                    try:
+                        async with aiofiles.open('.sessions', 'r', encoding='utf-8') as f:
+                            file_content = json.loads(await f.read())
+                    except Exception as e:
+                        print(f'[-] Error getting .sessions: type={type(e)}|error={e}')
+                        file_content = {}
+                else:
                     file_content = {}
                 async with aiofiles.open('.sessions', 'w', encoding='utf-8') as f:
                     file_content[this_ip] = cf_clearance
