@@ -1,4 +1,7 @@
-httpx
-pillow
-aiosqlite
+httpx~=0.27.2
+pillow~=11.0.0
+aiosqlite~=0.20.0
 aiogram==2.25.1
+undetected-chromedriver~=3.5.5
+aiofiles~=24.1.0
+aiohttp~=3.8.6

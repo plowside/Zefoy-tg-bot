@@ -1,9 +1,17 @@
-import asyncio, random, httpx, base64, re
+import hashlib
+import json
+import os.path
+
+import aiofiles.os
+import aiohttp
+from selenium.webdriver.common.action_chains import ActionChains
+import undetected_chromedriver as uc
+import aiofiles, asyncio, httpx, base64, re
 import time
 
 from PIL import Image
 from io import BytesIO
-from urllib.parse import urlparse, unquote
+from urllib.parse import unquote
 
 class Zefoy:
     def __init__(self, proxy: str = None, likes_to_send_count: int = 300):
@@ -21,20 +29,52 @@ class Zefoy:
         self.video_info = None
         self.likes_to_send_count = str(likes_to_send_count)
 
+        self.default_headers = {'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7','accept-language': 'ru,en-US;q=0.9,en;q=0.8,ru-RU;q=0.7','cache-control': 'no-cache','pragma': 'no-cache','priority': 'u=0, i','sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"131.0.6778.86"','sec-ch-ua-full-version-list': '"Google Chrome";v="131.0.6778.86", "Chromium";v="131.0.6778.86", "Not_A Brand";v="24.0.0.0"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'document','sec-fetch-mode': 'navigate','sec-fetch-site': 'same-origin','sec-fetch-user': '?1','upgrade-insecure-requests': '1','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}
+        self.post_headers = {'accept': '*/*','accept-language': 'ru,en-US;q=0.9,en;q=0.8,ru-RU;q=0.7','cache-control': 'no-cache','origin': 'https://zefoy.com','pragma': 'no-cache','priority': 'u=1, i','sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"131.0.6778.86"','sec-ch-ua-full-version-list': '"Google Chrome";v="131.0.6778.86", "Chromium";v="131.0.6778.86", "Not_A Brand";v="24.0.0.0"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'empty','sec-fetch-mode': 'cors','sec-fetch-site': 'same-origin','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36','x-requested-with': 'XMLHttpRequest'}
+        self.cf_clearance = None
+
+    async def new_client(self, force_no_proxy: bool = False):
+        if self.proxy and not force_no_proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
+        else:
+            self.proxy = None
+            self.client = httpx.AsyncClient(timeout=120)
+        self.client.cookies.set("user_agent", "Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36", 'zefoy.com')
+        self.client.cookies.set("window_size", "1920x911", 'zefoy.com')
+        self.client.cookies.set("language", "ru", 'zefoy.com')
+        self.client.cookies.set("languages", "ru,en-US,ru-RU,en", 'zefoy.com')
+        self.client.cookies.set("time_zone", "Asia/Novosibirsk", 'zefoy.com')
+        if not self.cf_clearance and os.path.exists('.sessions'):
+            this_ip = await self.get_ip()
+            if not this_ip: return await self.new_client(force_no_proxy=True)
+            try:
+                async with aiofiles.open('.sessions', 'r', encoding='utf-8') as f:
+                    file_content = json.loads(await f.read())
+            except json.decoder.JSONDecodeError:
+                file_content = {}
+            except Exception as e:
+                file_content = {}
+                print(f'[-] Error while trying to get saved cf_clearance values: type={type(e)}|error={e}')
+            self.cf_clearance = file_content.get(this_ip, None)
+        if self.cf_clearance: self.client.cookies.set("cf_clearance", self.cf_clearance, 'zefoy.com')
+        # print(f'new_client force_no_proxy={force_no_proxy} | cf_clearance={self.cf_clearance}')
+
     async def login(self, retry: int = 0):
+        await self.new_client()
         if retry >= 5: print(f'[+] Logging in. Retry №{retry+1}')
-        if self.proxy: self.client = httpx.AsyncClient(proxies={'http://': f'http://{self.proxy}', 'https://': f'http://{self.proxy}'}, timeout=120)
-        else: self.client = httpx.AsyncClient(timeout=120)
         if self.proxy:
             try:
                 for x in range(3):
-                    await self.client.get(f'https://google.com')
+                    await self.get_ip()
                     break
             except:
-                print(f'Invalid proxy: {self.proxy}')
-                self.client = httpx.AsyncClient(timeout=120)
+                print(f'[-] Invalid proxy: {self.proxy}')
+                self.proxy = None
+                await self.new_client(True)
 
         captcha = await self.get_captcha()
+        # print(captcha, isinstance(captcha, str) and captcha == '_retry')
+        if isinstance(captcha, str) and captcha == '_retry':
+            return await self.login(retry+1)
         if not captcha: return
         solve = await self.solve_captcha(captcha)
         authed = await self.send_captcha(solve)
@@ -42,21 +82,36 @@ class Zefoy:
             return await self.login(retry+1)
 
     async def solve_captcha(self, image_obj: BytesIO, delete_tag: list = ['\n','\r']):
-        # print('[+] Solving captcha...')
+        print('[+] Solving captcha...')
         req = (await self.aclient.post("https://plowsidecaptcha.pythonanywhere.com/captcha", files={"file": ("captcha.png", image_obj, "image/png")})).json()
         solved_text = req['captcha_text']
         for x in delete_tag: solved_text = solved_text.replace(x,'')
         return solved_text
 
     async def get_captcha(self):
-        resp = await self.client.get(self.base_url, headers = {'Host': 'zefoy.com', 'Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"', 'Sec-Ch-Ua-Mobile': '?0', 'Sec-Ch-Ua-Platform': '"Windows"', 'Accept-Language': 'ru-RU,ru;q=0.9', 'Upgrade-Insecure-Requests': '1', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Sec-Fetch-Site': 'none', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-User': '?1', 'Sec-Fetch-Dest': 'document', 'Priority': 'u=0, i', 'Connection': 'keep-alive'})
+        resp = await self.client.get(self.base_url, headers=self.default_headers)
         if 'Enter Video URL' in resp.text: # Already authed
             self.video_key = resp.text.split('" placeholder="Enter Video URL"')[0].split('name="')[-1]
             return None
         elif '<title>Just a moment...</title>' in resp.text: # 403
-            print('[-] Cloudflare')
-            return False
-
+            print('[-] Cloudflare, trying to solve...')
+            cf_clearance = await asyncio.get_event_loop().run_in_executor(None, self.get_cf_clearance)
+            if cf_clearance:
+                this_ip = await self.get_ip()
+                try:
+                    async with aiofiles.open('.sessions', 'r', encoding='utf-8') as f:
+                        file_content = json.loads(await f.read())
+                except Exception as e:
+                    print(type(e), e)
+                    file_content = {}
+                async with aiofiles.open('.sessions', 'w', encoding='utf-8') as f:
+                    file_content[this_ip] = cf_clearance
+                    await f.write(json.dumps(file_content))
+                self.cf_clearance = cf_clearance
+                return '_retry'
+            else:
+                print('[-] Cloudflare, cant solve...')
+                return False
         try:
             if 'Too many requests. Please slow down.</h1' in resp.text:
                 print('[-] Slow down')
@@ -64,7 +119,7 @@ class Zefoy:
                 return await self.get_captcha()
             self.captcha_token = resp.text.split('type="text" name="')[1].split('"')[0]
             captcha_url = resp.text.split('<img src="')[1].split('"')[0].replace('amp;', '')
-            req = await self.client.get(f"{self.base_url}/{captcha_url}", headers = {'Host': 'zefoy.com', 'Cache-Control': 'max-age=0', 'Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"', 'Sec-Ch-Ua-Mobile': '?0', 'Sec-Ch-Ua-Platform': '"Windows"', 'Accept-Language': 'ru-RU,ru;q=0.9', 'Origin': 'null', 'Content-Type': 'application/x-www-form-urlencoded', 'Upgrade-Insecure-Requests': '1', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36', 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7', 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-User': '?1', 'Sec-Fetch-Dest': 'document', 'Priority': 'u=0, i'})
+            req = await self.client.get(f"{self.base_url}/{captcha_url}", headers=self.default_headers)
             image = Image.open(BytesIO(req.content))
             image_obj = BytesIO()
             image.save(image_obj, format="PNG")
@@ -76,13 +131,10 @@ class Zefoy:
             return await self.get_captcha()
 
     async def send_captcha(self, solve: str):
-        resp = await self.client.post(self.base_url, data={self.captcha_token: solve}, headers={'Host': 'zefoy.com','Cache-Control': 'max-age=0','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Origin': 'null','Content-Type': 'application/x-www-form-urlencoded','Upgrade-Insecure-Requests': '1','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'navigate','Sec-Fetch-User': '?1','Sec-Fetch-Dest': 'document','Priority': 'u=0, i'})
-        # print(resp.text)
+        resp = await self.client.post(self.base_url, data={self.captcha_token: solve}, headers=self.default_headers)
         if 'Join our' in resp.text:
             self.video_key = resp.text.split('" placeholder="Enter Video URL"')[0].split('name="')[-1]
             await self.get_services(resp.text)
-            self.client.cookies.set("user_agent", "Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F130.0.6723.70%20Safari%2F537.36", 'zefoy.com')
-            self.client.cookies.set("window_size", "1589x917", 'zefoy.com')
             # print('[+] Session was created')
             return True
         else:
@@ -135,7 +187,7 @@ class Zefoy:
 
     async def get_video(self, url: str):
         # print('[+] Getting video...')
-        resp = await self.client.post(self.service_url, files={self.video_key: (None, url)}, headers={'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
+        resp = await self.client.post(self.service_url, files={self.video_key: (None, url)}, headers=self.post_headers)
 
         resp = self.get_payload(resp.text)
         if 'Session expired. Please re-login' in resp:
@@ -149,9 +201,11 @@ class Zefoy:
                 resp.split('" name="')[1].split('"')[0],
                 resp.split('value="')[1].split('"')[0]
             ]
-        elif 'Checking Timer...' in resp or 'The server is too busy. Please try again in' in resp:
+        elif 'Checking Timer...' in resp or 'The server is too busy. Please try again in' in resp or 'seconds before trying again' in resp:
             if 'The server is too busy. Please try again in' in resp:
                 time_to_sleep = int(re.findall(r'Please try again in (\d*)', resp)[0])
+            elif 'seconds before trying again' in resp:
+                time_to_sleep = int(re.findall(r'Please wait (\d*) seconds before trying again', resp)[0])
             else:
                 time_to_sleep = int(re.findall(r'ltm=(\d*);', resp)[0])
             if time_to_sleep >= 0 and time_to_sleep <= 1000:
@@ -176,7 +230,7 @@ class Zefoy:
 
     async def send_service(self, service: str, comment_id: str = None, retry: int = 0):
         print(f'[+] Sending service {service}...')
-        resp = await self.client.post(self.service_url, files={self.video_info[0]: (None, self.video_info[1])}, headers={'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
+        resp = await self.client.post(self.service_url, files={self.video_info[0]: (None, self.video_info[1])}, headers=self.post_headers)#{'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
         resp = self.get_payload(resp.text)
 
         if service == 'Comments Hearts':
@@ -205,7 +259,7 @@ class Zefoy:
                     await asyncio.sleep(3)
                 return await self.send_service(service, comment_id, retry+1)
 
-            resp = await self.client.post(self.service_url, files={v.group(1): (None, comment_id), v.group(2): (None, self.video_info[1]), 'select_lmt': (None, self.likes_to_send_count)}, headers={'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
+            resp = await self.client.post(self.service_url, files={v.group(1): (None, comment_id), v.group(2): (None, self.video_info[1]), 'select_lmt': (None, self.likes_to_send_count)}, headers=self.post_headers)#{'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
             resp = self.get_payload(resp.text)
 
         if 'Session expired. Please re-login' in resp:
@@ -241,27 +295,293 @@ class Zefoy:
             else:
                 print('[+] send_service', resp)
 
+    async def get_ip(self, service: str = 'https://eth0.me'):
+        async with aiohttp.ClientSession() as session:
+            try: resp = await session.get(service, proxy=f'http://{self.proxy}' if self.proxy else None)
+            except aiohttp.client_exceptions.ClientProxyConnectionError:
+                print(f'[-] Invalid proxy: {self.proxy}')
+                self.proxy = None
+                await self.new_client(True)
+                return None
+            except aiohttp.client_exceptions.ClientHttpProxyError:
+                print(f'[-] Invalid proxy: {self.proxy}')
+                self.proxy = None
+                await self.new_client(True)
+                return None
+        return (await resp.text()).strip()
+
+    def get_cf_clearance(self):
+        options = uc.ChromeOptions()
+        options.page_load_strategy = 'eager'
+        kwargs = {
+            'use_subprocess': False,
+            'headless': False,
+            'options': options
+        }
+        if self.proxy:
+            proxy_extension = SeleniumProxyManager.get_proxy(self.proxy)
+            options.add_argument(f'--load-extension={proxy_extension}')
+        driver = uc.Chrome(proxy=self.proxy, **kwargs)
+        driver.set_window_size(100, 400)
+        driver.get("https://zefoy.com")
+        time.sleep(3)
+        retry = 0
+        while True:
+            x_coord = 0
+            y_coord = 0
+
+            # Выполнение клика по координатам
+            action = ActionChains(driver)
+            action.move_by_offset(x_coord, y_coord).click().perform()
+
+            cookies = driver.get_cookies()
+            cf_clearance_cookie = next(
+                (cookie for cookie in cookies if cookie['name'] == 'cf_clearance'), None
+            )
+            if cf_clearance_cookie:
+                cf_clearance_cookie = cf_clearance_cookie['value']
+                print(f"[+] Got cf_clearance_cookie: {cf_clearance_cookie}")
+                driver.quit()
+                return cf_clearance_cookie
+            if retry >= 150:
+                print('[-] Cloudflare')
+                driver.quit()
+                return None
+            time.sleep(.5)
+            retry += 1
 
     def get_payload(self, payload: str, is_encrypt: bool = False):
         if is_encrypt:
             return payload
         else:
-            return base64.b64decode(unquote(payload.encode()[::-1])).decode()
+            try:
+                return base64.b64decode(unquote(payload.encode()[::-1])).decode()
+            except:
+                print(f'[-] Error on getting payload: {payload}')
 
+
+
+
+class SeleniumProxyManager:
+    @classmethod
+    def create_extension(cls, proxy: str):
+        if '@' in proxy:
+            proxy_host = proxy.split('@')[1].split(':')[0]
+            proxy_port = proxy.split('@')[1].split(':')[1]
+            proxy_user = proxy.split('@')[0].split(':')[0]
+            proxy_pass = proxy.split('@')[0].split(':')[1]
+        else:
+            proxy_host, proxy_port, proxy_user, proxy_pass = proxy.split(':')
+        extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
+        extension_path = f'proxy_extensions/{extension_filename}'
+
+        manifest_json = """
+        {
+            "version": "<ext_ver>",
+            "manifest_version": 3,
+            "name": "<ext_name>",
+            "permissions": [
+                "proxy",
+                "tabs",
+                "storage",
+                "webRequest",
+                "webRequestAuthProvider"
+            ],
+            "host_permissions": [
+                "<all_urls>"
+            ],
+            "background": {
+                "service_worker": "background.js"
+            },
+            "minimum_chrome_version": "22.0.0"
+        }
+        """
+
+        background_js = """
+        var config = {
+            mode: "fixed_servers",
+            rules: {
+                singleProxy: {
+                    scheme: "http",
+                    host: "<proxy_host>",
+                    port: parseInt("<proxy_port>")
+                },
+                bypassList: ["localhost"]
+            }
+        };
+    
+        chrome.proxy.settings.set({
+            value: config,
+            scope: "regular"
+        }, function() {});
+    
+        function callbackFn(details) {
+            return {
+                authCredentials: {
+                    username: "<proxy_username>",
+                    password: "<proxy_password>"
+                }
+            };
+        }
+    
+        chrome.webRequest.onAuthRequired.addListener(
+            callbackFn, {
+                urls: ["<all_urls>"]
+            },
+            ['blocking']
+        );
+        """
+
+        manifest = manifest_json
+        js = background_js
+        js = js.replace("<proxy_host>", proxy_host)
+        js = js.replace("<proxy_port>", str(proxy_port))
+        js = js.replace("<proxy_username>", proxy_user)
+        js = js.replace("<proxy_password>", proxy_pass)
+
+        manifest = manifest.replace("<ext_name>", 'Chrome Proxy')
+        manifest = manifest.replace("<ext_ver>", '1.0.0')
+
+        manifest_path = os.path.join(extension_path, "manifest.json")
+        background_path = os.path.join(extension_path, "background.js")
+
+        os.makedirs(extension_path, exist_ok=True)
+
+        with open(manifest_path, mode="w") as manifest_file:
+            manifest_file.write(manifest)
+
+        with open(background_path, mode="w") as background_file:
+            background_file.write(js)
+
+        return extension_path
+
+    @classmethod
+    def get_proxy(cls, proxy: str):
+        extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
+        files = os.listdir('proxy_extensions')
+        files = [f for f in files if os.path.isfile(os.path.join('proxy_extensions', f)) if extension_filename in f]
+        if not files:
+            cls.create_extension(proxy)
+
+        extension_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'proxy_extensions/{extension_filename}')
+        return extension_path
+
+
+    @classmethod
+    async def acreate_extension(cls, proxy: str):
+        if '@' in proxy:
+            proxy_host = proxy.split('@')[1].split(':')[0]
+            proxy_port = proxy.split('@')[1].split(':')[1]
+            proxy_user = proxy.split('@')[0].split(':')[0]
+            proxy_pass = proxy.split('@')[0].split(':')[1]
+        else:
+            proxy_host, proxy_port, proxy_user, proxy_pass = proxy.split(':')
+        extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
+        extension_path = f'proxy_extensions/{extension_filename}'
+
+        manifest_json = """
+        {
+            "version": "<ext_ver>",
+            "manifest_version": 3,
+            "name": "<ext_name>",
+            "permissions": [
+                "proxy",
+                "tabs",
+                "storage",
+                "webRequest",
+                "webRequestAuthProvider"
+            ],
+            "host_permissions": [
+                "<all_urls>"
+            ],
+            "background": {
+                "service_worker": "background.js"
+            },
+            "minimum_chrome_version": "22.0.0"
+        }
+        """
+
+        background_js = """
+        var config = {
+            mode: "fixed_servers",
+            rules: {
+                singleProxy: {
+                    scheme: "http",
+                    host: "<proxy_host>",
+                    port: parseInt("<proxy_port>")
+                },
+                bypassList: ["localhost"]
+            }
+        };
+    
+        chrome.proxy.settings.set({
+            value: config,
+            scope: "regular"
+        }, function() {});
+    
+        function callbackFn(details) {
+            return {
+                authCredentials: {
+                    username: "<proxy_username>",
+                    password: "<proxy_password>"
+                }
+            };
+        }
+    
+        chrome.webRequest.onAuthRequired.addListener(
+            callbackFn, {
+                urls: ["<all_urls>"]
+            },
+            ['blocking']
+        );
+        """
+
+        manifest = manifest_json
+        js = background_js
+        js = js.replace("<proxy_host>", proxy_host)
+        js = js.replace("<proxy_port>", str(proxy_port))
+        js = js.replace("<proxy_username>", proxy_user)
+        js = js.replace("<proxy_password>", proxy_pass)
+
+        manifest = manifest.replace("<ext_name>", 'Chrome Proxy')
+        manifest = manifest.replace("<ext_ver>", '1.0.0')
+
+        manifest_path = os.path.join(extension_path, "manifest.json")
+        background_path = os.path.join(extension_path, "background.js")
+
+        await aiofiles.os.makedirs(extension_path, exist_ok=True)
+
+        async with aiofiles.open(manifest_path, mode="w") as manifest_file:
+            await manifest_file.write(manifest)
+
+        async with aiofiles.open(background_path, mode="w") as background_file:
+            await background_file.write(js)
+
+        return extension_path
+
+    @classmethod
+    async def aget_proxy(cls, proxy: str):
+        extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
+        files = await aiofiles.os.listdir('proxy_extensions')
+        files = [f for f in files if await aiofiles.os.path.isfile(os.path.join('proxy_extensions', f)) if extension_filename in f]
+        if not files:
+            await cls.create_extension(proxy)
+
+        extension_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'proxy_extensions/{extension_filename}')
+        return extension_path
 
 
 
 async def main():
-    client = Zefoy()
-    # print(client.get_payload('D3%ogP2lGZvwjP2lGZvwjPiIXZkJ3bi1icl5mbpB3ci0zczFGbjBiI4BHM1oDdodWalh2O4BHM1oDa0RWa3JSPlxWe0NHI2lGZ8ogPiUmbv5mO5FGbwNXakJSPlxWe0NHIiEmM3JSPzNXYsNGI2lGZ8ogPuFGcz9CPu4WahdWYgknc0BSZzFWZsBFIuQWZyJXdjN2bgI3byJXZg4WQB2%IicvJnclByYl52buBicldmbhRWL0hXZ0BiNoByajFGbi1Cd4VGdi0zczFGbjBibhB3c8ogP2lGZvwjCK4jdpR2L8ogP2FmbvwjCB2%wWdvwjCgogPpx2L8ogPtJ3bm9CPK4jbvRHd1J2L84TavwjPiQHanlmct42byZXZoNWLhZGIhZmI9M3chx2YgkGPB2%QWZsJWYzlGZgICZs9mYtQHanlWZ31Cdu9mZgATLkVGZuV3byBCdodWas1ib0JGIuRnYi0zczFGbjBiI0lWbiV3ci0TZwlHdg42b0RXdixjCB2%ICM1ISPlVHbhZHIiAnI9UWbh5GIi4WZkRWaoJSPlBXe0BCd1BnbpxjCB2%ISOyEDN3AjM0cTM3AjN4YjN3MzNi0TZ1xWY2BiIyAjZ1MzM2gzMhJmZjN2Ni0TZtFmbgIiblRGZphmI9UGc5RHI0VHculGPK4jIpcSYycnLnwyJhFzducCKzRnbl1WZsVUZklGS39GazJSP0lWbiV3cu9GIiIXOHRmcsdEZm5kbjxGZzI2c4JjYtlzQaVnVyMmI942bpR3YhBSby9mZ8oAIB2%ISblRXatU2ZhBnI9M3chx2YgICd4VmTi0TZsRXa0BSasxjCgoAIK4Tas9CPK4Tby9mZvwjC7A3ci5mJB2%42b0RXdi9CPx4jIkx2bi1CdodWaldXL052bmBCMtgXbgsmbpxWLldWYwJSPzNXYsNGIiQXatJWdzJSPlBXe0BibvRHd1JGPK4jIwISPlVHbhZHIiAnI9UWbh5GIi4WZkRWaoJSPlBXe0BCd1BnbpxjCB2%ISOyEDN3AjM0cTM3AjN4YjN3MzNi0TZ1xWY2BiIyAjZ1MzM2gzMhJmZjN2Ni0TZtFmbgIiblRGZphmI9UGc5RHI0VHculGPK4jIpcSYycnLnwyJhFzducCKzRnbl1WZsVUZklGS39GazJSP0lWbiV3cu9GIiIXOHRmcsdEZm5kbjxGZzI2c4JjYtlzQaVnVyMmI942bpR3YhBSby9mZ8oAIB2%ICZlxmYhNXakBSblRXatU2ZhBnI9M3chx2YgkGb8oAIK4Tas9CPK4Tby9mZvwjCB2%42b0RXdi9CPB2%k2L84jI0ZWZs1ibvJndlh2YtEmZgEmZi0zczFGbjBSa84DZlxmYhNXakBiIkx2bi1CdodWaldXL052bmBCdodWas1ib0JGIuRnYi0zczFGbjBiI0lWbiV3ci0TZwlHdg42b0RXdixjCB2%ICM10iI9UWdsFmdgICci0TZtFmbgIiblRGZphmI9UGc5RHI0VHculGPK4jI5ITM0cDMyQzNxcDM2gjN2czM3ISPlVHbhZHIiIDMmVzMzYDOzEmYmN2Y3ISPl1WYuBiIuVGZklGai0TZwlHdgQXdw5Wa8ogPikyJhJzducCLnEWM35yJoMHduVWblxWRlRWaId3boNnI9QXatJWdz52bgIic5cEZyx2RkZmTuNGbkNjYzhnMi1WODpVdWJzYi0jbvlGdjFGItJ3bmxjCg4jItVGdp1SZnFGci0zczFGbjBiIrNWYCJSPlxGdpRHIpxGPKogPiw2bjBSMt0GIw0iYtBibvlGdh5WanFGci0zczFGbjBCb1xjCB2%Iibpl2ZhNXYgEWM3Byb0VXYtgXbi0zczFGbjBiIu9Wa0FmbpdWYwBCduVWbt92Qi0DblJWYs1SYpJXYgYXYuxjCB2%IyYl52buBCelxmZtQmI9M3chx2YgYXakxjCgogPtJ3bm9CPK4Db19CPB2%kGbvwjP2lGZvwjP2lGZvwjP2lGZvwjCg4jbvRHd1J2L84TavwjPicGbtEmZgQnchVGatEmZgEmZi0zczFGbjBSa84jIw0CZlRmb19mcgknch1WayBXLuRnYg4GdiJSPzNXYsNGIiQXatJWdzJSPlBXe0BibvRHd1JGPK4jdpR2L8ogP0NWZsV2cvwjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwAzMB2%ICMwMjI9UWdsFmdg42bpRHcvxjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwUjMB2%ICM1IjI9UWdsFmdg42bpRHcvxjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwAjMB2%ICMwIjI9UWdsFmdg42bpRHcvxjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwUTMB2%ICM1EjI9UWdsFmdg42bpRHcvxjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwATMB2%ICMwEjI9UWdsFmdg42bpRHcvxjCB2%42bpRHcv9CPzRnchVGSgQnbl1WbvNEIwUjPiATNi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgUjMB2%ISNyISPlVHbhZHIu9Wa0B3b8ogPiQXatlGTgQ3YlxWZTJSPsVmYhxWLhlmchBiIx0CcgETL01GIx0iYtBCZs9mYtQHanlWZ31Cdu9mZgATLkVGZuV3byByayFGZtQHelRHI0NWZsV2ctsmchRGI0NWZsV2ct0mcvZmI9M3chx2YgICdp1WasR3YlxWZzJSPklGIiQXbs9FdjVGblNnI9UWbh5GI0NWZsV2c8ogPiITMt02ctw2bjJSPzNXYsNGI2lGZ8ogPkVmcpVXclJHIikjMxQzNwIDN3EzNwYDO2YzNzcjI9UWdsFmdgIiNmJ2MzMWY3YWO0gzM0YDMxIjZ2ISPl1WYuBiIuVGZklGai0TZwlHdgQXdw5Wa8ogPkVmcpVXclJHIiUjNykTO2AzMykDOzYDO2YzNzcjI9UWdsFmdgIyNwMGZ5MWYzEmMyISPl1WYuBiIuVGZklGai0TZwlHdgQXdw5Wa8ogP2lGZvwjPp9CPB2%ICdyFWZo1SYmBSYmBCZlJXL0hXZ0JSPzNXYsNGIpxDIB2%4WYwN3L8YjN4wCOy4jIkx2bi1CdodWaldXL052bmBiblVmcn1Cd4VGdi0zczFGbjBibhB3c84jdpRGPKAiPuFGcz9CPvdWYgMHa052btBiNB2%ICZlRXdt1Cd4VGdi0zczFGbjBibhB3c8oAIB2%4WYwN3L8sjNxEzImsTMxEzImsDO5MiJ7ETMxMiJ7IDOjYyO1kzImsDNxEzImsTMwEzImsDO5MiJ7kDMxMiJ7ETMxMiJ7YjNjYyO3kzImsDOwEzImsDOwEzImsTNwEzImsTN3MiJ7QjNjYyOyMzImsjMxIDOjYyOyMzImsTOwEzImszN5MiJ7QTMxMiJ7MDMxMiJ7EDMxMiJ7gDMxMiJ7EDMxMiJ7QDOjYyOwEzImsTOxEzImsjMxEzImsjN0MiJ7gTOjYyO5ATMjYyOxETMjYyO4kzImszN5MiJ7gDMxMiJ7gDMxMiJ7UDMxMiJ7cDMxMiJ7IzMjYyOyEjM4MiJ7IzMjYyOwkDMxMiJ7EDOwEzImsjM3ATMjYyO3UDMxMiJB2%ICZs9mYtQHanlWZ31Cdu9mZgsmchRWL0hXZ0JSPzNXYsNGIuFGczxjCg4jbhB3cvwjP2lGZvwzOxATMjYyOxATMjYyOxATMjYyOwATMjYyO1ATMjYyO1ETMjYyO5ETMjYyOxETMjYyO4ATMjYyOyATMjYCQB2%ISan5WZy1SakF2aggXZsZWLl5Was5WatQGIkx2bi1CdodWaldXL052bmJSPzNXYsNGI2lGZ8ogPuFGczxjPisWYlJnYtQHelRHIu1Wds92YtgXZsZGI4VGbm1CZi0zczFGbjBidpRGPK4jItVGdp1Cc19mcn1CdzlGbi0zczFGbjBSasxjCB2%ICbhR2btJSPzNXatNXak1SY0FGZgICc19mcn1CdzlGbi0zczFGbjBCb1xjCB2%ISKnEmM35yJscSYxcnLngyc05WZtVGbFVGZph0dvh2ci0Ddp1mY1NnbvBiIhFzdi0zczFGbjBiIylzRkJHbHRmZO52YsR2MiNHeyIWb5MkW1ZlMjJSPu9Wa0NWYg0mcvZGPKAiCB2%0mcvZ2L8ogPsV3L84Tas9CPB2%YXak9CPB2%YXak9CPB2%YXak9CPKAiPu9Gd0VnYvwjPp9CPB2%IyZs1SYmBCdyFWZo1SYmBSYmJSPzNXYsNGIpxjPiATLkVGZuV3byBSeyFWbpJHct4GdiBib0JmI9M3chx2YgICdp1mY1NnI9UGc5RHIu9Gd0VnY8ogP2lGZvwjCB2%Q3YlxWZz9CPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgADMz4jIwAzMi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgATNy4jIwUjMi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgADMy4jIwAjMi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgATNx4jIwUTMi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgADMx4jIwATMi0TZ1xWY2BibvlGdw9GPK4jbvlGdw92L8MHdyFWZIBCduVWbt92QgATNB2%ICM1ISPlVHbhZHIu9Wa0B3b8ogPu9Wa0B3bvwzc0JXYlhEI05WZt12bDBSNy4jI1IjI9UWdsFmdg42bpRHcvxjCB2%ICdp1WaMBCdjVGblNlI9wWZiFGbtEWayFGIiETLwBSMtQXbgETLi1GIkx2bi1CdodWaldXL052bmBCMtQWZk5WdvJHIrJXYk1Cd4VGdgQ3YlxWZz1yayFGZgQ3YlxWZz1Sby9mZi0zczFGbjBiI0lWbpxGdjVGblNnI9QWagICdtx2X0NWZsV2ci0TZtFmbgQ3YlxWZzxjCB2%IiMx0Sbz1CbvNmI9M3chx2YgYXakxjCB2%QWZylWdxVmcgISOyEDN3AjM0cTM3AjN4YjN3MzNi0TZ1xWY2BiI2YmYzMzYhdjZ5QDOzQjNwEjMmZjI9UWbh5GIi4WZkRWaoJSPlBXe0BCd1BnbpxjCB2%QWZylWdxVmcgIiMzQTN1YTMzczN2kTO2MzN3MzNi0TZ1xWY2BiI3AzYklzYhNTYyIjI9UWbh5GIi4WZkRWaoJSPlBXe0BCd1BnbpxjCB2%YXak9CPB2%k2L84jI0JXYlhWLhZGIhZGIkVmctQHelRnI9M3chx2YgkGPg4jbhB3cvwjMB2%ICZs9mYtQHanlWZ31Cdu9mZg4WZlJ3ZtQHelRnI9M3chx2Yg4WYwNHPB2%YXakxjCg4jbhB3cvwzbnFGIzhGdu9WbgYjPiQWZ0VXbtQHelRnI9M3chx2Yg4WYwNHPKAiPuFGcz9CP7cDOwEzImsjN4ATMjYyOwkDMxMiJB2%ICZs9mYtQHanlWZ31Cdu9mZgsmchRWL0hXZ0JSPzNXYsNGIuFGczxjCg4jbhB3cvwjP2lGZvwzO5ATMjYyOwATMjYyO3kzImszN5MiJ7gDMxMiJ7gDMxMiJ7UDMxMiJ7cDMxMiJA5jIpdmblJXLpRWYrBCelxmZtUmbpxmbp1CZgQGbvJWL0h2ZpV2dtQnbvZmI9M3chx2YgYXakxjCB2%4WYwNHPB2%IyahVmci1Cd4VGdg4Wb1x2bj1CelxmZggXZsZWLkJSPzNXYsNGI2lGZ8ogPi0WZ0lWLwV3bydWL0NXasJSPzNXYsNGIpxGPK4jIsFGZv1mI9M3cp12cpRWLhRXYkBiIwV3bydWL0NXasJSPzNXYsNGIsVHPK4jIpcSYycnLnwyJhFzducCKzRnbl1WZsVUZklGS39GazJSP0lWbiV3cu9GIiEWM3JSPzNXYsNGIiIXOHRmcsdEZm5kbjxGZzI2c4JjYtlzQaVnVyMmI942bpR3YhBSby9mZ8oAI'))
-    # exit()
-    # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
-    # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
+    client = Zefoy('5213tonystark5213:MDKeQwiY4e@82.211.3.236:50101')
     await client.login()
-    # await client.use_service('Comments Hearts', 'https://vt.tiktok.com/ZSjB6EknW')
+
     try: await client.use_service('Comments Hearts', 'https://www.tiktok.com/@flowsideee/video/7376686071742074129', '7383771955814417158')
-    except Exception as e: print('await client.use_service', e)
+    except Exception as e:
+        print('await client.use_service', type(e), '|', e)
     await client.client.aclose()
+
+    # {'Followers': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9r', 'Hearts': 'c2VuZE9nb2xsb3dlcnNfdGlrdG9r', 'Comments Hearts': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9r', 'Views': 'c2VuZC9mb2xeb3dlcnNfdGlrdG9V', 'Shares': 'c2VuZC9mb2xsb3dlcnNfdGlrdG9s', 'Favorites': 'c2VuZF9mb2xsb3dlcnNfdGlrdG9L', 'Live Stream [VS+LIKES]': 'c2VuZC9mb2xsb3dlcnNfdGlrdGLL'}
 
 
 
