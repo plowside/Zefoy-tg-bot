@@ -94,6 +94,9 @@ class Zefoy:
         if 'Enter Video URL' in resp.text: # Already authed
             self.video_key = resp.text.split('" placeholder="Enter Video URL"')[0].split('name="')[-1]
             return None
+        elif '<title>Attention Required! | Cloudflare</title>' in resp.text:
+            print('[-] Your ip region blocked for zefoy.com')
+            return False
         elif '<title>Just a moment...</title>' in resp.text: # 403
             print('[-] Cloudflare, trying to solve...')
             cf_clearance = await asyncio.get_event_loop().run_in_executor(None, self.get_cf_clearance)
@@ -379,6 +382,7 @@ class SeleniumProxyManager:
         extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
         extension_path = f'proxy_extensions/{extension_filename}'
 
+
         manifest_json = """
         {
             "version": "<ext_ver>",
@@ -462,6 +466,7 @@ class SeleniumProxyManager:
     @classmethod
     def get_proxy(cls, proxy: str):
         extension_filename = f'{hashlib.md5(proxy.encode()).hexdigest()}'
+        os.makedirs('proxy_extensions', exist_ok=True)
         files = os.listdir('proxy_extensions')
         files = [f for f in files if os.path.isfile(os.path.join('proxy_extensions', f)) if extension_filename in f]
         if not files:
@@ -577,7 +582,7 @@ class SeleniumProxyManager:
 
 
 async def main():
-    client = Zefoy('5213tonystark5213:MDKeQwiY4e@82.211.3.236:50101')
+    client = Zefoy()#5213tonystark5213:MDKeQwiY4e@82.211.3.236:50101
     await client.login()
 
     try: await client.use_service('Comments Hearts', 'https://www.tiktok.com/@flowsideee/video/7376686071742074129', '7383771955814417158')
