@@ -112,7 +112,7 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
         if ttl <= 0:
             logging.info(f'Task {task_id} finished success')
             await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача успешно завершена</i>')
-            return await db.update_task(task_id, status='error')
+            return await db.update_task(task_id, status='success')
         try:
             future = asyncio.get_event_loop().create_task(zefoy_client.use_service('Comments Hearts', task['video_url'], task['comment_id'], ttl=ttl*60))
             while True:
@@ -125,12 +125,12 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
                         logging.info(f'Task {task_id} finished success')
                         future.cancel()
                         await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача успешно завершена</i>')
-                        return await db.update_task(task_id, status='error')
+                        return await db.update_task(task_id, status='success')
                 if not future.done():
                     continue
                 if future.done():
                     result = future.result()
-                    if result == False:
+                    if not result:
                         if retry > 5:
                             logging.info(f'Task {task_id} finished with error')
                             await notify(task['user_id'], f'<b>🔔 Уведомление о задаче</b>\nID задачи:  <code>{task["id"]}</code>\n\n<i>Задача завершена с ошибкой</i>')
@@ -155,12 +155,6 @@ async def run_zefoy_comments(task_id: int, retry: int = 0):
 
 if __name__ == '__main__':
     print(asyncio.run(parse_proxy([
-    '192.168.1.1:8080',
-    'priv-resi.enigmaproxy.net:12321:bhca01efho:xwtzgchwfy_country-us',
-    '192.168.1.2:9090:user:pass',
-    'priv-resi.enigmaproxy.net:12321:user:pass',
-    '''212.103.125.48:1080:asd:zxc''',
-    'zxc:124:asd:asd',
-    'zzz:0'
+    '5213tonystark5213:MDKeQwiY4e@82.211.3.236:50101'
 ]
 )))

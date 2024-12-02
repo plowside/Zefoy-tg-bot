@@ -33,6 +33,15 @@ class Database:
 									status TEXT,
 									create_ts INTEGER
 								)''')
+			await db.execute('''CREATE TABLE IF NOT EXISTS presets (
+									id INTEGER PRIMARY KEY AUTOINCREMENT,
+									user_id INTEGER,
+									title TEXT,
+									author_username TEXT,
+									proxy TEXT,
+									task_ttl INTEGER,
+									create_ts INTEGER
+								)''')
 			await db.commit()
 
 	@classmethod
@@ -115,9 +124,63 @@ class Database:
 
 		return await cls.get_task(task_id)
 
+
+	@classmethod
+	async def get_preset(cls, preset_id: int = None, user_id: int = None) -> dict|list:
+		async with aiosqlite.connect(cls.DB_PATH) as db:
+			if preset_id is not None:
+				async with db.execute(f'SELECT * FROM presets WHERE id = ?', (preset_id,)) as cur:
+					cur.row_factory = dict_factory
+					preset = await cur.fetchone()
+					return preset
+			elif user_id is not None:
+				async with db.execute(f'SELECT * FROM presets WHERE user_id = ? ORDER BY id DESC', (user_id,)) as cur:
+					cur.row_factory = dict_factory
+					presets = await cur.fetchall()
+					return presets
+			else:
+				async with db.execute(f'SELECT * FROM presets ORDER BY id DESC') as cur:
+					cur.row_factory = dict_factory
+					presets = await cur.fetchall()
+					return presets
+
+	@classmethod
+	async def create_preset(cls, user_id: int, title: str, author_username: str, proxy: str|list, task_ttl: int) -> dict:
+		async with aiosqlite.connect(cls.DB_PATH) as db:
+			ts = int(time.time())
+
+			async with await db.execute('INSERT INTO presets (user_id, title, author_username, proxy, task_ttl, create_ts) VALUES (?, ?, ?, ?, ?, ?)', (user_id, title, author_username, proxy, task_ttl, ts)) as cur:
+				cur.row_factory = dict_factory
+				preset_id = cur.lastrowid
+			await db.commit()
+
+		return await cls.get_preset(preset_id)
+
+	@classmethod
+	async def update_preset(cls, preset_id: int, title: str = None, author_username: str = None, proxy: str|list = None) -> dict:
+		async with aiosqlite.connect(cls.DB_PATH) as db:
+			if title is not None:
+				await db.execute('UPDATE presets SET title = ? WHERE id = ?', (title, preset_id))
+			if author_username is not None:
+				await db.execute('UPDATE presets SET author_username = ? WHERE id = ?', (author_username, preset_id))
+			if proxy is not None:
+				await db.execute('UPDATE presets SET proxy = ? WHERE id = ?', (proxy, preset_id))
+			await db.commit()
+
+		return await cls.get_preset(preset_id)
+
+
+	@classmethod
+	async def delete_preset(cls, preset_id: int) -> dict:
+		async with aiosqlite.connect(cls.DB_PATH) as db:
+			await db.execute('DELETE FROM presets WHERE id = ?', (preset_id, ))
+			await db.commit()
+
+		return True
+
 async def main():
 	await Database.create_tables()
-	user = await Database.get_user(7538546817)
+	user = await Database.get_task(47)
 	print(user)
 
 

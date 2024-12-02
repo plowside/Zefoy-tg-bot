@@ -30,6 +30,7 @@ class TikTok:
         :param aweme_id: ID видео в тиктоке
         :param search_text: Текст для поиска в комментарии
         :param author_username: Юзернейм автора для поиска
+        :param search_comment_id: ID комментария для поиска
         :return: Список с комментариями
         """
         async with httpx.AsyncClient(timeout=120) as client:
@@ -115,13 +116,13 @@ class TikTok:
 
         return searched_comments
 
-
-async def main():
-    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@flowsideee/video/7376686071742074129/')
-    video_id = TikTok.extract_video_id(full_url)
-    print(video_id, full_url)
-    comments = await TikTok.get_video_comments(video_id, search_comment_id=7383771955814417158)
-    print(len(comments), comments)
-
-if __name__ == '__main__':
-    asyncio.run(main())
+#
+# async def main():
+#     full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@flowsideee/video/7376686071742074129/')
+#     video_id = TikTok.extract_video_id(full_url)
+#     print(video_id, full_url)
+#     comments = await TikTok.get_video_comments(video_id, search_comment_id=7383771955814417158)
+#     print(len(comments), comments)
+#
+# if __name__ == '__main__':
+#     asyncio.run(main())

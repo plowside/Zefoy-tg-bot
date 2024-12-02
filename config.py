@@ -1,4 +1,4 @@
-BOT_TOKEN = "7249716331:AAF0itIwLlHNr-jBCsOvCr8PeusFWPZ64Zw"
+BOT_TOKEN = "7249716331:AAFJ9L0bXrC2aVTkHGFtQrlbLrHEi50Fq7k"
 ADMINS = [1488282589, 1679518666, 5892870427, 7538546817, 7362080227, 988178439]  # Список ID админов
 
 # Настройки задачи
@@ -14,5 +14,6 @@ STATUS_EMOJI_TRANSLATIONS = {
     "created": "🟡",
     "in_progress": "🟢",
     "error": "🔴",
-    "completed": "🔴"
+    "completed": "🔴",
+    "success": "🔴"
 }

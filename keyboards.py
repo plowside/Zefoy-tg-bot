@@ -2,6 +2,7 @@ import json
 
 from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
+from database import Database as db
 from config import STATUS_EMOJI_TRANSLATIONS
 
 
@@ -26,9 +27,10 @@ async def kb_construct(keyboard = None, q = None, row_width = 2):
 async def kb_menu(is_admin: bool) -> InlineKeyboardMarkup:
 	q = {
 		'Создать задачу': 'cd^user:task:create',
-		'Мои задачи': 'cd^user:task:my_tasks'
+		'Мои задачи': 'cd^user:task:my_tasks',
+		'Пресеты': 'cd^user:preset:menu',
 	}
-	keyboard = await kb_construct(InlineKeyboardMarkup(), q)
+	keyboard = await kb_construct(InlineKeyboardMarkup(row_width=2), q)
 	return keyboard
 
 async def kb_user_tasks(tasks: list, page: int = 1) -> InlineKeyboardMarkup:
@@ -55,21 +57,52 @@ async def kb_user_tasks(tasks: list, page: int = 1) -> InlineKeyboardMarkup:
 	keyboard.add(InlineKeyboardButton('↪ Назад', callback_data=f'user:menu'))
 	return keyboard
 
-async def kb_search_video_comments() -> InlineKeyboardMarkup:
+async def kb_search_video_comments(user_id: int) -> InlineKeyboardMarkup:
+	print(user_id, user_id)
 	q = {
 		'По тексту': 'cd^text',
 		'По юзернейму': 'cd^username'
 	}
 	keyboard = await kb_construct(InlineKeyboardMarkup(row_width=2), q)
+	keyboard.add(InlineKeyboardButton('=== ПРЕСЕТЫ ===', callback_data='_'))
+	keyboard.add(InlineKeyboardButton('', callback_data='__'))
+	for preset in await db.get_preset(user_id=user_id):
+		keyboard.insert(InlineKeyboardButton(preset['title'], callback_data=f'preset:{preset["id"]}'))
+	keyboard.add(InlineKeyboardButton('===============', callback_data='_'))
 	keyboard.add(InlineKeyboardButton('↪ Назад', callback_data='back'))
 	return keyboard
 
-async def kb_add_proxies() -> InlineKeyboardMarkup:
+async def kb_add_proxies(text: str = 'Создать задачу') -> InlineKeyboardMarkup:
 	q = {
-		'Создать задачу': 'cd^create_task',
+		text: 'cd^create_task',
 		'↪ Назад': 'cd^back'
 	}
 	keyboard = await kb_construct(InlineKeyboardMarkup(row_width=1), q)
+	return keyboard
+
+async def kb_presets_menu() -> InlineKeyboardMarkup:
+	q = {
+		'Мои пресеты': 'cd^user:preset:my',
+		'Добавить новый': 'cd^user:preset:create'
+	}
+	keyboard = await kb_construct(InlineKeyboardMarkup(row_width=1), q)
+	keyboard.add(InlineKeyboardButton('↪ Назад', callback_data='user:menu'))
+	return keyboard
+
+async def kb_presets_my(user_id: int) -> InlineKeyboardMarkup:
+	keyboard = InlineKeyboardMarkup(row_width=1)
+	for preset in await db.get_preset(user_id=user_id):
+		keyboard.insert(InlineKeyboardButton(preset['title'], callback_data=f'user:preset:show:{preset["id"]}'))
+	keyboard.add(InlineKeyboardButton('↪ Назад', callback_data='user:preset:menu'))
+	return keyboard
+
+async def kb_presets_show(preset_id: int) -> InlineKeyboardMarkup:
+	q = {
+		# '🗑 Изменить': f'cd^user:preset:delete:{preset_id}',
+		'🗑 Удалить': f'cd^user:preset:delete:{preset_id}'
+	}
+	keyboard = await kb_construct(InlineKeyboardMarkup(row_width=1), q)
+	keyboard.add(InlineKeyboardButton('↪ Назад', callback_data='user:preset:menu'))
 	return keyboard
 
 ### UTILS ###

@@ -30,6 +30,8 @@ class Zefoy:
         self.video_info = None
         self.likes_to_send_count = str(likes_to_send_count)
 
+        # self.default_headers = {'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7','accept-language': 'de-AT,de;q=0.9,en-US;q=0.8,en;q=0.7','cache-control': 'no-cache','pragma': 'no-cache','priority': 'u=0, i','sec-ch-ua': '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"123.0.6312.46"','sec-ch-ua-full-version-list': '"Google Chrome";v="123.0.6312.46", "Not:A-Brand";v="8.0.0.0", "Chromium";v="123.0.6312.46"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'document','sec-fetch-mode': 'navigate','sec-fetch-site': 'same-origin','sec-fetch-user': '?1','upgrade-insecure-requests': '1','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'}
+        # self.post_headers = {'accept': '*/*','accept-language': 'de-AT,de;q=0.9,en-US;q=0.8,en;q=0.7','origin': 'https://zefoy.com','priority': 'u=1, i','sec-ch-ua': '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"123.0.6312.46"','sec-ch-ua-full-version-list': '"Google Chrome";v="123.0.6312.46", "Not:A-Brand";v="8.0.0.0", "Chromium";v="123.0.6312.46"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'empty','sec-fetch-mode': 'cors','sec-fetch-site': 'same-origin','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36','x-requested-with': 'XMLHttpRequest'}
         self.default_headers = {'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7','accept-language': 'ru,en-US;q=0.9,en;q=0.8,ru-RU;q=0.7','cache-control': 'no-cache','pragma': 'no-cache','priority': 'u=0, i','sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"131.0.6778.86"','sec-ch-ua-full-version-list': '"Google Chrome";v="131.0.6778.86", "Chromium";v="131.0.6778.86", "Not_A Brand";v="24.0.0.0"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'document','sec-fetch-mode': 'navigate','sec-fetch-site': 'same-origin','sec-fetch-user': '?1','upgrade-insecure-requests': '1','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'}
         self.post_headers = {'accept': '*/*','accept-language': 'ru,en-US;q=0.9,en;q=0.8,ru-RU;q=0.7','cache-control': 'no-cache','origin': 'https://zefoy.com','pragma': 'no-cache','priority': 'u=1, i','sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"','sec-ch-ua-arch': '"x86"','sec-ch-ua-bitness': '"64"','sec-ch-ua-full-version': '"131.0.6778.86"','sec-ch-ua-full-version-list': '"Google Chrome";v="131.0.6778.86", "Chromium";v="131.0.6778.86", "Not_A Brand";v="24.0.0.0"','sec-ch-ua-mobile': '?0','sec-ch-ua-model': '""','sec-ch-ua-platform': '"Windows"','sec-ch-ua-platform-version': '"15.0.0"','sec-fetch-dest': 'empty','sec-fetch-mode': 'cors','sec-fetch-site': 'same-origin','user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36','x-requested-with': 'XMLHttpRequest'}
         self.cf_clearance = None
@@ -39,11 +41,14 @@ class Zefoy:
         else:
             self.proxy = None
             self.client = httpx.AsyncClient(timeout=120)
-        self.client.cookies.set("user_agent", "Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36", 'zefoy.com')
-        self.client.cookies.set("window_size", f"{random.randint(1600, 1920)}x{random.randint(600, 900)}", 'zefoy.com')
-        self.client.cookies.set("language", "ru", 'zefoy.com')
-        self.client.cookies.set("languages", "ru,en-US,ru-RU,en", 'zefoy.com')
-        self.client.cookies.set("time_zone", "Asia/Novosibirsk", 'zefoy.com')
+        user_agents = [
+            'Mozilla%2F5.0%20(Windows%20NT%2010.0%3B%20Win64%3B%20x64)%20AppleWebKit%2F537.36%20(KHTML%2C%20like%20Gecko)%20Chrome%2F131.0.0.0%20Safari%2F537.36'
+        ]
+        self.client.cookies.set("user_agent", random.choice(user_agents))
+        self.client.cookies.set("window_size", f"{random.randint(1911, 1920)}x{random.choice((900, 911, 940, 1000))}")
+        self.client.cookies.set("language", "de-AT")
+        self.client.cookies.set("languages", "de-AT,de,en-US,en")
+        self.client.cookies.set("time_zone", "Europe/Vienna")
         if not self.cf_clearance and os.path.exists('.sessions'):
             this_ip = await self.get_ip()
             if not this_ip: return await self.new_client(force_no_proxy=True)
@@ -58,6 +63,8 @@ class Zefoy:
             self.cf_clearance = file_content.get(this_ip, None)
         if self.cf_clearance: self.client.cookies.set("cf_clearance", self.cf_clearance, 'zefoy.com')
         # print(f'new_client force_no_proxy={force_no_proxy} | cf_clearance={self.cf_clearance}')
+
+
 
     async def login(self, retry: int = 0):
         await self.new_client()
@@ -204,9 +211,12 @@ class Zefoy:
         elif 'service is currently not working' in resp:
             print('[-] Service is currently not working')
         elif 'onsubmit="showHideElements' in resp:
+            z = resp.split('="col-sm-12')[0].split('hidden" name="')[-1]
             self.video_info = [
                 resp.split('" name="')[1].split('"')[0],
-                resp.split('value="')[1].split('"')[0]
+                resp.split('value="')[1].split('"')[0],
+                z.split('"')[0],
+                z.split('" value="')[1].split('"')[0],
             ]
         elif 'Checking Timer...' in resp or 'The server is too busy. Please try again in' in resp or 'seconds before trying again' in resp:
             if 'The server is too busy. Please try again in' in resp:
@@ -265,9 +275,11 @@ class Zefoy:
                 else:
                     await asyncio.sleep(3)
                 return await self.send_service(service, comment_id, retry+1)
-
-            resp = await self.client.post(self.service_url, files={v.group(1): (None, comment_id), v.group(2): (None, self.video_info[1]), 'select_lmt': (None, self.likes_to_send_count)}, headers=self.post_headers)#{'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
+            print('zzz', {v.group(1): (None, comment_id), v.group(2): (None, self.video_info[1]), self.video_info[2]: (None, self.video_info[3]), 'select_lmt': (None, self.likes_to_send_count)})
+            resp = await self.client.post(self.service_url, files={v.group(1): (None, comment_id), v.group(2): (None, self.video_info[1]), self.video_info[2]: (None, self.video_info[3]), 'select_lmt': (None, self.likes_to_send_count)}, headers=self.post_headers)#{'Host': 'zefoy.com','Sec-Ch-Ua-Platform': '"Windows"','Accept-Language': 'ru-RU,ru;q=0.9','Sec-Ch-Ua': '"Not?A_Brand";v="99", "Chromium";v="130"','Sec-Ch-Ua-Mobile': '?0','X-Requested-With': 'XMLHttpRequest','User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.70 Safari/537.36','Accept': '*/*','Origin': 'https://zefoy.com','Sec-Fetch-Site': 'same-origin','Sec-Fetch-Mode': 'cors','Sec-Fetch-Dest': 'empty','Priority': 'u=1, i'})
             resp = self.get_payload(resp.text)
+            print(resp)
+
 
         if 'Session expired. Please re-login' in resp:
             print('[-] Session expired')
@@ -296,6 +308,9 @@ class Zefoy:
             print('[-] Error on submit: Please try again later. Server too busy.')
         elif 'An error occurred. Please try again' in resp:
             print('[-] Error on submit: Please try again. (Maybe code error, site fixed)')
+        elif 'Please use another browser' in resp:
+            print('[-] Error on submit: Please use another browser.')
+            await asyncio.sleep(5)
         else:
             if "sans-serif;text-align:center;color:green;'>" in resp:
                 print('[+] send_service', resp.split("sans-serif;text-align:center;color:green;'>")[1].split("</")[0].strip())
@@ -582,7 +597,7 @@ class SeleniumProxyManager:
 
 
 async def main():
-    client = Zefoy()#5213tonystark5213:MDKeQwiY4e@82.211.3.236:50101
+    client = Zefoy('194.71.107.64:10197:modeler_gdSGv9:xyXfKa8Xe8gg')
     await client.login()
 
     try: await client.use_service('Comments Hearts', 'https://www.tiktok.com/@flowsideee/video/7376686071742074129', '7383771955814417158')

@@ -64,6 +64,12 @@ class CreateTask(StatesGroup):
     InputTaskTTL: State = State()
     InputTaskProxy: State = State()
 
+class CreatePreset(StatesGroup):
+    InputPresetTitle: State = State()
+    InputAuthorUsername: State = State()
+    InputTaskTTL: State = State()
+    InputTaskProxy: State = State()
+
 dp.filters_factory.bind(CheckUserInDB)
 ################################################################################
 
@@ -77,6 +83,11 @@ async def cmd_start(message: types.Message):
 
     await message.answer("Добро пожаловать! Выберите действие:", reply_markup=await kb_menu(is_admin))
 
+@dp.callback_query_handler(text_startswith="back", is_authed=True)
+async def handle_utils(call: types.CallbackQuery, state: FSMContext):
+    await call.answer("❌ Неизвестная кнопка", show_alert=True)
+    await call.message.delete()
+    return await cmd_start(call.message)
 
 @dp.callback_query_handler(text_startswith="user", is_authed=True)
 async def handle_user(call: types.CallbackQuery, state: FSMContext):
@@ -87,6 +98,7 @@ async def handle_user(call: types.CallbackQuery, state: FSMContext):
 
     if cd[1] == 'menu':
         await call.message.edit_text("Добро пожаловать! Выберите действие:", reply_markup=await kb_menu(is_admin))
+
     elif cd[1] == "task":
         sub_act = cd[2]
 
@@ -106,6 +118,30 @@ async def handle_user(call: types.CallbackQuery, state: FSMContext):
             task = await db.get_task(task_id=task_id)
             await call.message.edit_text(f"<b>ℹ️ Информация о задаче</b>\n\n{STATUS_EMOJI_TRANSLATIONS[task['status']]} ID Задачи: <code>{task['id']}</code>\n├ Ссылка на видео:  <code>{task['video_url']}</code>\n├ ID комментария:  <code>{task['comment_id']}</code>\n├ Время работы:  <code>{task['task_ttl']} минут</code>\n├ Уже выполнено:  <code>{task['already_completed_minutes']} минут</code>\n├ Дата создания:  <code>{datetime.fromtimestamp(task['create_ts']).strftime('%d.%m.%Y %H:%M')}</code>\n├ Лайков:  <code>{task['likes_count']}</code>\n└ Статус:  <code>{STATUS_TRANSLATIONS[task['status']]}</code>", reply_markup=await kb_back(f'user:task:my_tasks:{page}'))
 
+    elif cd[1] == "preset":
+        sub_act = cd[2]
+
+        if sub_act == 'menu':
+            await call.message.edit_text("<b>⚙️ Мои пресеты</b>", reply_markup=await kb_presets_menu())
+
+        elif sub_act == 'my':
+            await call.message.edit_text("<b>⚙️ Ваши пресеты</b>", reply_markup=await kb_presets_my(user_id))
+
+        elif sub_act == 'create':
+            await call.message.edit_text("<b>⚙️ Создание пресета</b>\n\n<i>Придумайте название пресета</i>", reply_markup=await kb_back('back'))
+            await state.set_state(CreatePreset.InputPresetTitle)
+
+        elif sub_act == 'show':
+            preset_id = int(cd[3])
+            preset = await db.get_preset(preset_id=preset_id)
+            await call.message.edit_text(f"<b>⚙️ Пресет \"{preset['title']}\"</b>\n├ Автор для поиска:  <code>{preset['author_username']}</code>\n├ Время работы:  <code>{preset['task_ttl']} минут</code>\n└ Прокси:  <code>{preset['proxy'] if preset['proxy'] else 'Нет'}</code>", reply_markup=await kb_presets_show(preset_id))
+
+        elif sub_act == 'delete':
+            preset_id = int(cd[3])
+            await db.delete_preset(preset_id)
+            await call.message.edit_text("<b>✅ Пресет удален</b>", reply_markup=await kb_back('user:preset:my'))
+
+
 
 @dp.message_handler(state=CreateTask.InputVideoUrl)
 async def state_create_task_input_video_url(message: types.Message, state: FSMContext):
@@ -113,6 +149,7 @@ async def state_create_task_input_video_url(message: types.Message, state: FSMCo
     short_url = message.text
     video_url = await TikTok.get_full_tiktok_url(short_url)
     video_id = TikTok.extract_video_id(video_url)
+    user_id = message.from_user.id
 
     if not video_id:
         await message.answer(f'<b>❌ Не удалось получить id видео</b>\nВведенная ссылка:  <code>{short_url}</code>\nСсылка для обработки:  <code>{video_url}</code>', reply_markup=await kb_back('back'))
@@ -123,9 +160,10 @@ async def state_create_task_input_video_url(message: types.Message, state: FSMCo
     if len(video_comments) == 0:
         await message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\n\n<i>❌ Найдено 0 комментариев</i>', reply_markup=await kb_back('back'))
         return
+
     await state.update_data(video_url=video_url, video_comments=video_comments)
     await state.set_state(CreateTask.SelectCommentSearchType)
-    await message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments())
+    await message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария либо выберите пресет</i>', reply_markup=await kb_search_video_comments(user_id))
 
 @dp.callback_query_handler(state=CreateTask.InputVideoUrl)
 async def state_create_task_input_video_url_callback(call: types.CallbackQuery, state: FSMContext):
@@ -143,7 +181,7 @@ async def state_create_task_select_comment_search_type_callback(call: types.Call
         state_data = await state.get_data()
         video_url = state_data['video_url']
         video_comments = state_data['video_comments']
-        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments())
+        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments(call.from_user.id))
         return
     if call.data == 'back':
         await state.set_state(CreateTask.InputVideoUrl)
@@ -155,6 +193,39 @@ async def state_create_task_select_comment_search_type_callback(call: types.Call
     elif call.data == 'username':
         await state.update_data(search_type='username')
         text = 'Введите полный юзернейм или часть юзернейма создателя комментария для поиска'
+    elif call.data == 'preset_reset':
+        state_data = await state.get_data()
+        video_url = state_data['video_url']
+        video_comments = state_data['video_comments']
+        return await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария либо выберите пресет</i>', reply_markup=await kb_search_video_comments(call.from_user.id))
+    elif call.data.startswith('preset'):
+        preset_id = int(call.data.split(':')[1])
+        preset = await db.get_preset(preset_id)
+        state_data = await state.get_data()
+
+        video_url = state_data['video_url']
+        video_comments = state_data['video_comments']
+        video_comments = TikTok.search_comments(video_comments, preset['author_username'], False, True)
+        if len(video_comments) == 0:
+            return await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\n\n<i>❌ Найдено 0 комментариев по юзернейму "{preset["author_username"]}"</i>', reply_markup=await kb_back('preset_reset'))
+        else:
+            comment = video_comments[0]
+            comment_text = comment["text"].split('\n')[0][:20]
+            comment_id = comment['id']
+        await state.finish()
+
+        if len(preset['proxy']) == 0:
+            try: proxy = ','.join(open(DEFAULT_PROXY_PATH, 'r', encoding='utf-8').read().splitlines())
+            except:
+                proxy = ''
+                await call.answer(f'❌ Файл с прокси не найден', show_alert=True)
+        else:
+            proxy = ','.join(preset['proxy'].split(','))
+
+        task = await db.create_task(call.from_user.id, state_data['video_url'], comment_id, proxy, preset['task_ttl'])
+        message = await call.message.edit_text('<i>⚙️ Создание задачи...</i>')
+        asyncio.get_event_loop().create_task(run_task(task['id']))
+        return await message.edit_text(f'<i>Задача создана. ID задачи: {task["id"]}</i>', reply_markup=await kb_back(f'user:task:show:1:{task["id"]}', 'Перейти к задаче'))
     else:
         return await call.answer('Неизвестная кнопка')
 
@@ -236,7 +307,7 @@ async def state_create_input_comment_id_callback(call: types.CallbackQuery, stat
         state_data = await state.get_data()
         video_url = state_data['video_url']
         video_comments = state_data['video_comments']
-        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments())
+        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments(call.from_user.id))
         return
     else:
         return await call.answer('<i>⛔️ Неизвестная кнопка</i>')
@@ -267,7 +338,7 @@ async def state_create_task_input_task_ttl_callback(call: types.CallbackQuery, s
         state_data = await state.get_data()
         video_url = state_data['video_url']
         video_comments = state_data['video_comments']
-        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments())
+        await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\nНайдено <code>{len(video_comments)}</code> комментариев\n\n<i>Выберите тип поиска комментария</i>', reply_markup=await kb_search_video_comments(call.from_user.id))
         return
     else:
         return await call.answer('Неизвестная кнопка')
@@ -309,7 +380,7 @@ async def state_create_task_input_task_proxy_callback(call: types.CallbackQuery,
         task = await db.create_task(call.from_user.id, state_data['video_url'], state_data['comment_id'], proxy, state_data['task_ttl'])
         message = await call.message.answer('<i>⚙️ Создание задачи...</i>')
         asyncio.get_event_loop().create_task(run_task(task['id']))
-        await message.edit_text(f'<i>Задача создана. ID задачи: {task["id"]}</i>', reply_markup=await kb_back('user:task:my_tasks', 'Перейти к задаче'))
+        await message.edit_text(f'<i>Задача создана. ID задачи: {task["id"]}</i>', reply_markup=await kb_back(f'user:task:show:1:{task["id"]}', 'Перейти к задаче'))
         await state.finish()
     elif call.data == 'back':
         state_data = await state.get_data()
@@ -321,6 +392,128 @@ async def state_create_task_input_task_proxy_callback(call: types.CallbackQuery,
         await call.message.edit_text(f'<b>⚙️ Создание задачи</b>\nСсылка на видео:  <code>{video_url}</code>\n\n📝 Найденный комментарий:\nID:  <code>{comment["id"]}</code>\nАвтор: <code>@{comment["author"]}</code>\nТекст: <i>{comment_text}</i>\n\n<i>⏳ Введите время накрутки в минутах</i>', reply_markup=await kb_back('back'))
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@dp.message_handler(state=CreatePreset.InputPresetTitle)
+async def state_create_preset_input_preset_title(message: types.Message, state: FSMContext):
+    """Ввод названия пресета"""
+    preset_title = message.text
+
+    await state.update_data(preset_title=preset_title)
+    await message.answer(f'<b>⚙️ Создание пресета</b>\nНазвание пресета:  <code>{preset_title}</code>\n\n<i>Отправьте юзернейм автора</i>', reply_markup=await kb_back('back'))
+    await state.set_state(CreatePreset.InputAuthorUsername)
+
+@dp.callback_query_handler(state=CreatePreset.InputPresetTitle)
+async def state_create_preset_input_preset_title_callback(call: types.CallbackQuery, state: FSMContext):
+    """Ввод названия пресета"""
+    if call.data == 'back':
+        call.data = 'user:preset:menu'
+        return await handle_user(call, state)
+    else:
+        return await call.answer('Неизвестная кнопка')
+
+@dp.message_handler(state=CreatePreset.InputAuthorUsername)
+async def state_create_preset_input_search_text(message: types.Message, state: FSMContext):
+    """Ввод автора юзернейма для поиска среди комментариев"""
+    author_username = message.text
+
+    await state.update_data(author_username=author_username)
+    await message.answer(f'<b>⚙️ Создание пресета</b>\nЮзернейм автора:  <code>{author_username}</code>\n\n<i>⏳ Введите время накрутки в минутах</i>', reply_markup=await kb_back('back'))
+    await state.set_state(CreatePreset.InputTaskTTL)
+
+@dp.callback_query_handler(state=CreatePreset.InputAuthorUsername)
+async def state_create_preset_input_search_text_callback(call: types.CallbackQuery, state: FSMContext):
+    """Выбор типа данных для поиска"""
+    if call.data == 'back':
+        call.data = 'user:preset:create'
+        return await handle_user(call, state)
+    else:
+        return await call.answer('Неизвестная кнопка')
+
+
+@dp.message_handler(state=CreatePreset.InputTaskTTL)
+async def state_create_preset_input_task_ttl(message: types.Message, state: FSMContext):
+    """Ввод времени накрутки в минутах"""
+    try:
+        task_ttl = int(message.text.strip())
+    except:
+        await message.answer('<i>⚠️ Введите число без посторонних символов</i>', reply_markup=await kb_back('back'))
+        return
+
+    state_data = await state.get_data()
+    preset_title = state_data['preset_title']
+    author_username = state_data['author_username']
+    await state.update_data(task_ttl=task_ttl, proxies=[])
+    await state.set_state(CreatePreset.InputTaskProxy)
+    await message.answer(f'<b>⚙️ Создание пресета</b>\nНазвание пресета:  <code>{preset_title}</code>\nЮзернейм автора:  <code>{author_username}</code>\nВремя накрутки:  <code>{task_ttl} минут</code>\n\n<i>📰 Отправьте прокси для задачи (принимаются файлы и просто сообщения), 1 строка = 1 прокси.\nДопустимые форматы прокси:\nip:port\nip:port:user:pass\nuser:pass@ip:pass\n\nДанный пункт можно пропустить, тогда будут использоваться прокси из конфига</i>', reply_markup=await kb_add_proxies('Создать пресет'))
+
+@dp.callback_query_handler(state=CreatePreset.InputTaskTTL)
+async def state_create_preset_input_task_ttl_callback(call: types.CallbackQuery, state: FSMContext):
+    """Ввод времени накрутки в минутах"""
+    if call.data == 'back':
+        state_data = await state.get_data()
+        preset_title = state_data['preset_title']
+        await call.message.edit_text(f'<b>⚙️ Создание пресета</b>\nНазвание пресета:  <code>{preset_title}</code>\n\n<i>Отправьте юзернейм автора</i>', reply_markup=await kb_back('back'))
+        await state.set_state(CreatePreset.InputAuthorUsername)
+    else:
+        return await call.answer('Неизвестная кнопка')
+
+
+
+@dp.message_handler(state=CreatePreset.InputTaskProxy, content_types=[types.ContentType.TEXT, types.ContentType.DOCUMENT])
+async def state_create_preset_input_task_proxy(message: types.Message, state: FSMContext):
+    """Добавление прокси для пресета"""
+    if message.content_type == types.ContentType.TEXT:
+        proxy = message.text.splitlines()
+    elif message.content_type == types.ContentType.DOCUMENT:
+        file_in_io = io.BytesIO()
+        await message.document.download(destination_file=file_in_io)
+        file_in_io.seek(0)
+        content = file_in_io.read().decode('utf-8')
+        proxy = content.splitlines()
+    else:
+        return await message.answer(f'<i>⛔️ Данный формат данных (<code>{message.content_type}</code>) не поддерживается</i>')
+
+    parsed_proxies = await parse_proxy(proxy)
+    state_data = await state.get_data()
+    msg = await message.answer(f'<b>⚙️ Создание пресета</b>\n<i>Добавлено прокси: {len(parsed_proxies)} шт.</i>', reply_markup=await kb_add_proxies('Создать пресет'))
+    await state.update_data(proxies=[*state_data['proxies'], *parsed_proxies], messages=[*state_data.get('messages', []), msg])
+
+@dp.callback_query_handler(state=CreatePreset.InputTaskProxy)
+async def state_create_preset_input_task_proxy_callback(call: types.CallbackQuery, state: FSMContext):
+    """Добавление прокси для пресета"""
+    if call.data == 'create_task':
+        state_data = await state.get_data()
+        if len(state_data['proxies']) == 0:
+            try: proxy = ','.join(open(DEFAULT_PROXY_PATH, 'r', encoding='utf-8').read().splitlines())
+            except:
+                proxy = ''
+                await call.answer(f'❌ Файл с прокси не найден', show_alert=True)
+        else:
+            proxy = ','.join(state_data['proxies'])
+        preset = await db.create_preset(call.from_user.id, state_data['preset_title'], state_data['author_username'], proxy, state_data['task_ttl'])
+        await call.message.edit_text(f'<i>Пресет создан. ID пресета: {preset["id"]}</i>', reply_markup=await kb_back(f'user:preset:show:{preset["id"]}', 'Перейти к пресету'))
+        await state.finish()
+    elif call.data == 'back':
+        state_data = await state.get_data()
+        preset_title = state_data['preset_title']
+        author_username = state_data['author_username']
+        await call.message.edit_text(f'<b>⚙️ Создание пресета</b>\nНазвание пресета:  <code>{preset_title}</code>\nЮзернейм автора:  <code>{author_username}</code>\n\n<i>⏳ Введите время накрутки в минутах</i>', reply_markup=await kb_back('back'))
+        await state.set_state(CreatePreset.InputTaskTTL)
 
 
 
