@@ -116,13 +116,13 @@ class TikTok:
 
         return searched_comments
 
-#
-# async def main():
-#     full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@flowsideee/video/7376686071742074129/')
-#     video_id = TikTok.extract_video_id(full_url)
-#     print(video_id, full_url)
-#     comments = await TikTok.get_video_comments(video_id, search_comment_id=7383771955814417158)
-#     print(len(comments), comments)
-#
-# if __name__ == '__main__':
-#     asyncio.run(main())
+
+async def main():
+    full_url = await TikTok.get_full_tiktok_url('https://www.tiktok.com/@sussyki8/video/7385959010849066273?lang=ru-RU')
+    video_id = TikTok.extract_video_id(full_url)
+    print(video_id, full_url)
+    comments = await TikTok.get_video_comments(video_id, author_username='VЕРМАХ')
+    print(len(comments), comments)
+
+if __name__ == '__main__':
+    asyncio.run(main())
